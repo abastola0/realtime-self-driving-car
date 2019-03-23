@@ -1,41 +1,37 @@
-# Realtime self driving car
+# Realtime self driving car implementing DNN
 
 
+## Install dependencies and create environment
+First install the Anaconda distribution and install all the required dependencies.Create the virtual environment tf-gpu (for eg)
 
-## Dependencies
+conda create --name tf-gpu
 
-You can install all dependencies by running one of the following commands
+install supported verson of python by tensorflow and proceed to below steps
 
-You need a [anaconda](https://www.continuum.io/downloads) or [miniconda](https://conda.io/miniconda.html) to use the environment setting.
-
-```python
-# Use TensorFlow without GPU
-conda env create -f environments.yml 
-
-# Use TensorFlow with GPU
-conda env create -f environment-gpu.yml
-```
-
-Or you can manually install the required libraries (see the contents of the environemnt*.yml files) using pip.
-
-
-### Run the pretrained model
-
-Start up [the Udacity self-driving simulator](https://github.com/udacity/self-driving-car-sim), choose a scene and press the Autonomous Mode button.  Then, run the model as follows:
+### Run the pretrained model(model-010.h5)
+Turn on all the connections to esp32 and H-bridge driver and wait for five seconds while the servo returns to the centre
 
 ```python
-python drive.py model.h5
+python drive.py model-010.h5
 ```
 
 ### To train the model
 
 You'll need the data folder which contains the training images.
 
+The folder is created automatically when you run 
+
+```python
+python train.py
+```
+This creates a folder named training_data and run below code corresponding to the created folder!
+
 ```python
 python model.py
 ```
+if you run python train.py more than once the code automatically creates training_data1 and so on!
 
-This will generate a file `model-<epoch>.h5` whenever the performance in the epoch is better than the previous best.  For example, the first epoch will generate a file called `model-000.h5`.
+After running model.py it will generate a file `model-<epoch>.h5` whenever the performance in the epoch is better than the previous best.  For example, the first epoch will generate a file called `model-000.h5`.Models are saved after every epoch so run the latest model when you run the drive.py
 
 
 
