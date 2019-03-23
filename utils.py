@@ -2,6 +2,7 @@ import cv2, os
 import numpy as np
 import matplotlib.image as mpimg
 
+
 IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS = 66, 200, 3
 # IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS = 160, 320, 3
 INPUT_SHAPE = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
@@ -19,6 +20,7 @@ def crop(image):
     """
     Crop the image (removing the sky at the top and the car front at the bottom)
     """
+    image = cv2.resize(image, (320,160))
     return image[60:-25, :, :] # remove the sky and the car front
 
 
@@ -46,11 +48,11 @@ def preprocess(image):
     return image
 
 
-def choose_image(data_dir, center, steering_angle):
-
-
-    return load_image(data_dir, center), steering_angle
-
+##def choose_image(data_dir, center, steering_angle):
+##
+##
+##    return load_image(data_dir, center), steering_angle
+##
 
 def random_flip(image, steering_angle):
     """
@@ -124,7 +126,8 @@ def augument(data_dir, center, steering_angle, range_x=100, range_y=10):
     """
 
 
-    image, steering_angle = choose_image(data_dir, center, steering_angle)
+##    image, steering_angle = choose_image(data_dir, center, steering_angle)
+    image, steering_angle = load_image(data_dir, center), steering_angle
     image, steering_angle = random_flip(image, steering_angle)
     image, steering_angle = random_translate(image, steering_angle, range_x, range_y)
     # image = random_shadow(image)
@@ -139,19 +142,24 @@ def batch_generator(data_dir, image_paths, steering_angles, batch_size, is_train
     """
     images = np.empty([batch_size, IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS])
     steers = np.empty(batch_size)
+
     while True:
+        
         i = 0
+ 
         for index in np.random.permutation(image_paths.shape[0]):
 
             center = image_paths[index]
             steering_angle = steering_angles[index]
-            # argumentation
+            # agumentation
             if is_training and np.random.rand() < 0.6:
                 image, steering_angle = augument(data_dir, center, steering_angle)
             else:
                 image = load_image(data_dir, center) 
             # add the image and steering angle to the batch
             images[i] = preprocess(image)
+
+
             steers[i] = steering_angle
             i += 1
             if i == batch_size:

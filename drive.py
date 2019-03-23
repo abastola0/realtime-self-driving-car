@@ -1,109 +1,146 @@
-#parsing command line arguments
-import argparse
-#decoding camera images
-import base64
-#for frametimestamp saving
-from datetime import datetime
-#reading and writing files
-import os
-#high level file operations
-import shutil
-#matrix math
+# import queue
+# from threading import Thread
 import numpy as np
-#real-time server
-import socketio
-#concurrent networking 
-import eventlet
-#web server gateway interface
-import eventlet.wsgi
-#image manipulation
-from PIL import Image
-#web framework
-from flask import Flask
-#input output
+# import sys
+# q = queue.Queue(maxsize=1) 
+angles = np.arange(30,132,2 )
+# def run_main_thread():
+# global q
+import detect
+import argparse
+import base64
+import time
+import socket
+import cv2
+import numpy as np
 from io import BytesIO
-
-#load our saved model
-from keras.models import load_model
-
-#helper class
 import utils
+import tensorflow
+from keras.models import load_model
+from PIL import Image
+from numpy import interp
+import sys
+from gps_utils import rdp
+import mplleaflet
+import sqlite3 as sql
+import os
+import matplotlib.pyplot as plt
 
-#initialize our server
-sio = socketio.Server()
-#our flask (web) app
-app = Flask(__name__)
-#init our model and image array as empty
+##url = 'http://192.168.43.1:8080/video'
+url = 'http://192.168.43.1:8080/video'
+bufferSize  = 1024
+UDP_IP = '192.168.43.157' # Vehicle IP address
+UDP_PORT = 3000  # This port match the ones using on other scripts
+
+cap = cv2.VideoCapture(url)
 model = None
-prev_image_array = None
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.settimeout(0.01)
 
-#set min/max speed for our autonomous car
-MAX_SPEED = 25
-MIN_SPEED = 10
+hog = cv2.HOGDescriptor()
+hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+# this triggers the driving mode on the server 
+sock.sendto(bytes('drive', 'utf-8'), (UDP_IP,UDP_PORT ))
+def recieve_data():
+    global q
+##     print('data recieved from the server:{}'.format(sock.recvfrom(bufferSize)))
 
-#and a speed limit
-speed_limit = MAX_SPEED
+    try:
+        m = sock.recvfrom(bufferSize)[0].decode("utf-8")
+        print(m) 
+        # if q.empty():
+            # q.put(m)
+        # else:
+        #     q.queue.clear()
+        #     q.put(m)
 
-#registering event handler for the server
-@sio.on('telemetry')
-def telemetry(sid, data):
-    if data:
-        # The current steering angle of the car
-        steering_angle = float(data["steering_angle"])
-        # The current throttle of the car, how hard to push peddle
-        throttle = float(data["throttle"])
-        # The current speed of the car
-        speed = float(data["speed"])
-        # The current image from the center camera of the car
-        image = Image.open(BytesIO(base64.b64decode(data["image"])))
-        try:
-            image = np.asarray(image)       # from PIL image to numpy array
-            image = utils.preprocess(image) # apply the preprocessing
-            image = np.array([image])       # the model expects 4D array
+    except:
+        pass
 
-            # predict the steering angle for the image
-            steering_angle = float(model.predict(image, batch_size=1))
-            # lower the throttle as the speed increases
-            # if the speed is above the current speed limit, we are on a downhill.
-            # make sure we slow down first and then go back to the original max speed.
-            global speed_limit
-            if speed > speed_limit:
-                speed_limit = MIN_SPEED  # slow down
-            else:
-                speed_limit = MAX_SPEED
-            throttle = 1.0 - steering_angle**2 - (speed/speed_limit)**2
 
-            print('{} {} {}'.format(steering_angle, throttle, speed))
-            send_control(steering_angle, throttle)
-        except Exception as e:
-            print(e)
+count = 0
+def send_control(values):
+    global count
+    global angles
 
-        # save frame
-        if args.image_folder != '':
-            timestamp = datetime.utcnow().strftime('%Y_%m_%d_%H_%M_%S_%f')[:-3]
-            image_filename = os.path.join(args.image_folder, timestamp)
-            image.save('{}.jpg'.format(image_filename))
-    else:
+    values = [values[0], 1020-int(interp(round(values[1], 4), [-1,1], [0,1020])),angles[count]]
+    sock.sendto(bytes(str(values), 'utf-8'), (UDP_IP,UDP_PORT ))
+    # print('data sent to the vehicle:{}'.format(values))
+    count+=1
+    if count is len(angles)-1:
+        count = 0
+        angles = angles[::-1]
+
+    try:
+        recieve_data()
+    except:
+        pass
+##     print('data recieved from the server:{}'.format(sock.recvfrom(bufferSize)[0]))
+
+def put_text(frame,steering_angle):
+    return cv2.putText(frame,'Throttle:-1, Steering angle:'+str(round(steering_angle, 4)),(10,310), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(200,255,155),1 )
+
+def predict_steer():     
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    steering_angle = 0
+    while True:
         
-        sio.emit('manual', data={}, skip_sid=True)
+        _,Frame = cap.read()
+        # gets data in the form of pandas dataframe of image , throttle and steering angle
+        if _:
+            frame = Frame.copy()
+            frame = put_text(frame, steering_angle)
+            # this is to detect the pedrestrians
+
+            cv2.imshow('image', frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                    stop_all()
+                    
+            Frame = cv2.cvtColor(Frame, cv2.COLOR_BGR2RGB)
+            # image = Image.open(BytesIO(base64.b64decode(Frame)))
+            image = Frame
+            try:
+                    image = np.asarray(image)
+                    image = utils.preprocess(image)
+                    image = np.array([image])
+                    steering_angle = float(model.predict(image ,batch_size = 1))
+                    throttle = 0 # set throttle to maximum in our test case where our speed and mass is not high enough to create large Inertia
+                    send_control([throttle, steering_angle])
+                    
+            except Exception as e:
+                    print(e)
+        else:
+            print('no frames recieved!\nplease make sure the video server is running!!')
+            stop_all()
+
+def stop_all():
+    dat = str([511,511])
+    sock.sendto(bytes(dat, 'utf-8'), (UDP_IP,UDP_PORT ))
+    sock.sendto(bytes('disconnect', 'utf-8'), (UDP_IP, UDP_PORT))
+    sock.close()
+    sys.exit("pressed home button. Shutting down!!")
 
 
-@sio.on('connect')
-def connect(sid, environ):
-    print("connect ", sid)
-    send_control(0, 0)
 
+def generate_map():
 
-def send_control(steering_angle, throttle):
-    sio.emit(
-        "steer",
-        data={
-            'steering_angle': steering_angle.__str__(),
-            'throttle': throttle.__str__()
-        },
-        skip_sid=True)
+    conn = sql.connect("geocoordinates1.db")
+    c = conn.cursor()
+    x = c.execute("SELECT lon,lat FROM  GeoCoordinates ")
+    list_data = x.fetchall()
+    x = []
+    y = []
+    for data in list_data:
+        x.append(data[0])
+        y.append(data[1])
+    list_data = np.array(list_data)
+    plt.plot(list_data[:,0],list_data[:,1])
+    list_data = rdp(list_data, epsilon = 1e-4)
+    fig = plt.figure()
+    plt.plot(list_data[:, 0], list_data[:, 1], "r*")     
+    mplleaflet.show() 
 
-
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Remote Driving')
     parser.add_argument(
@@ -119,23 +156,28 @@ if __name__ == '__main__':
         help='Path to image folder. This is where the images from the run will be saved.'
     )
     args = parser.parse_args()
-
-    #load model
     model = load_model(args.model)
+    try:
+        generate_map()
+        predict_steer()
 
-    if args.image_folder != '':
-        print("Creating image folder at {}".format(args.image_folder))
-        if not os.path.exists(args.image_folder):
-            os.makedirs(args.image_folder)
-        else:
-            shutil.rmtree(args.image_folder)
-            os.makedirs(args.image_folder)
-        print("RECORDING THIS RUN ...")
-    else:
-        print("NOT RECORDING THIS RUN ...")
+        
+    except KeyboardInterrupt:
+        stop_all()
 
-    # wrap Flask application with engineio's middleware
-    app = socketio.Middleware(sio, app)
+# def run_sec_thread():
+#     global q
+#     while 1:
+            
+#         if q.full():
+#             print(q.get())
 
-    # deploy as an eventlet WSGI server
-    eventlet.wsgi.server(eventlet.listen(('', 4567)), app)
+# thread1 = Thread(target=run_main_thread)
+# thread2 = Thread(target = run_sec_thread)
+# try:
+#     thread1.start()
+#     thread2.start()
+#     thread1.join()
+#     thread2.join()
+# except (KeyboardInterrupt, SystemExit):
+#     sys.exit()

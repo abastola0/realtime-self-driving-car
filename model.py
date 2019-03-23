@@ -26,7 +26,7 @@ def load_data(args):
     Load training data and split it into training and validation set
     """
     #reads CSV file into a single dataframe variable
-    data_df = pd.read_csv(os.path.join(os.getcwd(), args.data_dir, 'driving_log.csv'), names=['center','steering', 'throttle', 'reverse', 'speed'])
+    data_df = pd.read_csv(os.path.join(os.getcwd(), args.data_dir, 'driving_log.csv'), names=['center','steering', 'throttle', 'reverse'])
 
     #yay dataframes, we can select rows and columns by their names
     #we'll store the camera images as our input data
