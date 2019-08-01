@@ -33,6 +33,11 @@ if you run python train.py more than once the code automatically creates trainin
 
 After running model.py it will generate a file `model-<epoch>.h5` whenever the performance in the epoch is better than the previous best.  For example, the first epoch will generate a file called `model-000.h5`.Models are saved after every epoch so run the latest model when you run the drive.py
 
+![alt text](https://github.com/abastola0/realtime-self-driving-car/blob/test/images/20190323_180938.jpg)
+
+![alt text](https://github.com/abastola0/realtime-self-driving-car/blob/test/images/20190323_180947.jpg)
+
+![alt text](https://github.com/abastola0/realtime-self-driving-car/blob/test/images/20190323_181017.jpg)
 
 Also,plese checkout the video by clicking on the thumbnail below:
 
